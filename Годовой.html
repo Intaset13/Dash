@@ -227,18 +227,19 @@
             
             <div class="filter-group">
                 <label for="metric-filter">Показатель:</label>
-                <select id="metric-filter" disabled>
-                    <option value="Количество машин">Количество машин</option>
-                    <option value="Вес, кг">Вес, кг</option>
-                    <option value="Кол-во позиций">Кол-во позиций</option>
-                    <option value="Кол-во заказов">Кол-во заказов</option>
-                    <option value="Cтоимость руб/поз">Cтоимость руб/поз</option>
-                    <option value="% от заказов">% от заказов</option>
-                    <option value="% от машин">% от машин</option>
-                    <option value="Оборот склад кг/ч">Оборот склад кг/ч</option>
-                    <option value="Позиций в час">Позиций в час</option>
-                    <option value="Корректировка качества">Корректировка качества</option>
-                </select>
+               <select id="metric-filter" disabled>
+    <option value="Количество машин">Количество машин</option>
+    <option value="Вес, кг">Вес, кг</option>
+    <option value="Кол-во позиций">Кол-во позиций</option>
+    <option value="Кол-во заказов">Кол-во заказов</option>
+    <option value="Cтоимость руб/поз">Cтоимость руб/поз</option>
+    <option value="% от заказов">% от заказов</option>
+    <option value="% от машин">% от машин</option>
+    <option value="Оборот склад кг/ч">Оборот склад кг/ч</option>
+    <option value="Позиций в час">Позиций в час</option>
+    <option value="Корректировка качества">Корректировка качества</option>
+    <option value="Претензии">Претензии</option>
+</select>
             </div>
         </div>
         
@@ -654,23 +655,23 @@
                         }
                     },
                     series: [
-                        {
-                            name: 'Корректировка качества',
-                            type: 'line',
-                            data: allMonths.map(month => {
-                                const item = processedData.find(d => d.Месяц === month && d.Показатель === "Корректировка качества");
-				console.log(`Месяц: ${month}, Значение:`, item ? item["Кол-во"] : 0);
-                                return item ? item["Кол-во"] : 0;
-                            }),
-                            smooth: true,
-                            lineStyle: {
-                                width: 3,
-                                color: chartColors[4]
-                            },
-                            itemStyle: {
-                                color: chartColors[4]
-                            }
-                        },
+                      {
+    name: 'Корректировка качества',
+    type: 'line',
+    data: allMonths.map(month => {
+        const item = processedData.find(d => 
+            (yearFilter.value === 'all' || d.Год.toString() === yearFilter.value) &&
+            d.Месяц === month && 
+            d.Показатель === "Корректировка качества"
+        );
+        return item ? item["Кол-во"] : 0;
+    }),
+    smooth: true,
+    lineStyle: {
+        width: 3,
+        color: chartColors[4]
+    }
+},
                         {
                             name: '% от заказов',
                             type: 'line',
