@@ -1,0 +1,721 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Дашборд: Анализ склада "Верховье"</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <style>
+        :root {
+            --bg-color: #f5f7fa;
+            --text-color: #333;
+            --card-bg: white;
+            --card-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            --filter-bg: white;
+            --border-color: #ddd;
+            --primary-color: #3498db;
+            --hover-color: #2980b9;
+        }
+
+        .dark-mode {
+            --bg-color: #1a1a1a;
+            --text-color: #f0f0f0;
+            --card-bg: #2d2d2d;
+            --card-shadow: 0 2px 10px rgba(0,0,0,0.3);
+            --filter-bg: #3d3d3d;
+            --border-color: #555;
+            --primary-color: #4a9fe0;
+            --hover-color: #3a8fd0;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            transition: all 0.3s ease;
+        }
+
+        .dashboard {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .theme-switcher {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .theme-btn {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            color: var(--text-color);
+            padding: 5px 10px;
+            border-radius: 15px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .file-upload {
+            background: var(--card-bg);
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: var(--card-shadow);
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        .filters {
+            background: var(--filter-bg);
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: var(--card-shadow);
+            margin-bottom: 20px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+        }
+
+        .filter-group {
+            display: flex;
+            flex-direction: column;
+            min-width: 200px;
+        }
+
+        select, button {
+            padding: 8px;
+            border-radius: 4px;
+            border: 1px solid var(--border-color);
+            background: var(--card-bg);
+            color: var(--text-color);
+        }
+
+        button {
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+
+        button:hover {
+            background-color: var(--hover-color);
+        }
+
+        .kpi-cards {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .kpi-card {
+            background: var(--card-bg);
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: var(--card-shadow);
+        }
+
+        .kpi-value {
+            font-size: 24px;
+            font-weight: bold;
+            margin: 10px 0;
+            color: var(--text-color);
+        }
+
+        .kpi-title {
+            color: #7f8c8d;
+            font-size: 14px;
+        }
+
+        .charts-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .chart-container {
+            background: var(--card-bg);
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: var(--card-shadow);
+            height: 350px;
+        }
+
+        .chart-title {
+            margin-top: 0;
+            margin-bottom: 15px;
+            font-size: 16px;
+            color: var(--text-color);
+        }
+
+        .full-width {
+            grid-column: 1 / -1;
+        }
+
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 20px;
+        }
+
+        @media (max-width: 768px) {
+            .kpi-cards {
+                grid-template-columns: 1fr 1fr;
+            }
+            
+            .charts-row {
+                grid-template-columns: 1fr;
+            }
+            
+            .filters {
+                flex-direction: column;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="dashboard">
+        <div class="header">
+            <h1>Анализ склада "Верховье"</h1>
+            <div class="theme-switcher">
+                <button class="theme-btn" id="light-theme">
+                    <span>☀️</span> Светлая
+                </button>
+                <button class="theme-btn" id="dark-theme">
+                    <span>🌙</span> Темная
+                </button>
+            </div>
+        </div>
+        
+        <div class="file-upload">
+            <h3>Загрузите файл данных (Excel или CSV)</h3>
+            <input type="file" id="file-input" accept=".xlsx,.xls,.csv">
+            <button id="load-btn">Загрузить данные</button>
+            <div class="loading" id="loading">Загрузка и обработка данных...</div>
+        </div>
+        
+        <div class="filters">
+            <div class="filter-group">
+                <label for="year-filter">Год:</label>
+                <select id="year-filter" disabled>
+                    <option value="all">Все</option>
+                </select>
+            </div>
+            
+            <div class="filter-group">
+                <label for="month-filter">Месяц:</label>
+                <select id="month-filter" disabled>
+                    <option value="all">Все</option>
+                </select>
+            </div>
+            
+            <div class="filter-group">
+                <label for="metric-filter">Показатель:</label>
+                <select id="metric-filter" disabled>
+                    <option value="Количество машин">Количество машин</option>
+                    <option value="Вес, кг">Вес, кг</option>
+                    <option value="Кол-во позиций">Кол-во позиций</option>
+                    <option value="Кол-во заказов">Кол-во заказов</option>
+                    <option value="Cтоимость руб/поз">Cтоимость руб/поз</option>
+                    <option value="% от заказов">% от заказов</option>
+                    <option value="% от машин">% от машин</option>
+                    <option value="Оборот склад кг/ч">Оборот склад кг/ч</option>
+                    <option value="Позиций в час">Позиций в час</option>
+                    <option value="Корректировка качества">Корректировка качества</option>
+                </select>
+            </div>
+        </div>
+        
+        <div class="kpi-cards">
+            <div class="kpi-card">
+                <div class="kpi-title">Среднее количество машин</div>
+                <div class="kpi-value" id="avg-machines">-</div>
+            </div>
+            <div class="kpi-card">
+                <div class="kpi-title">Общий вес грузов (тонны)</div>
+                <div class="kpi-value" id="total-weight">-</div>
+            </div>
+            <div class="kpi-card">
+                <div class="kpi-title">Средний % претензий</div>
+                <div class="kpi-value" id="avg-claims">-</div>
+            </div>
+            <div class="kpi-card">
+                <div class="kpi-title">Средний оборот (кг/ч)</div>
+                <div class="kpi-value" id="avg-turnover">-</div>
+            </div>
+        </div>
+        
+        <div class="charts-row">
+            <div class="chart-container">
+                <h3 class="chart-title">Динамика показателя</h3>
+                <canvas id="mainChart"></canvas>
+            </div>
+            <div class="chart-container">
+                <h3 class="chart-title">Сравнение показателей</h3>
+                <div id="comparisonChart" style="width: 100%; height: 300px;"></div>
+            </div>
+        </div>
+        
+        <div class="charts-row">
+            <div class="chart-container">
+                <h3 class="chart-title">Эффективность склада</h3>
+                <canvas id="efficiencyChart"></canvas>
+            </div>
+            <div class="chart-container">
+                <h3 class="chart-title">Претензии</h3>
+                <div id="problemsChart" style="width: 100%; height: 300px;"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Глобальные переменные для данных и графиков
+        let rawData = [];
+        let processedData = [];
+        let mainChart, efficiencyChart;
+        const comparisonChart = echarts.init(document.getElementById('comparisonChart'));
+        const problemsChart = echarts.init(document.getElementById('problemsChart'));
+        
+        // Элементы интерфейса
+        const fileInput = document.getElementById('file-input');
+        const loadBtn = document.getElementById('load-btn');
+        const loadingIndicator = document.getElementById('loading');
+        const yearFilter = document.getElementById('year-filter');
+        const monthFilter = document.getElementById('month-filter');
+        const metricFilter = document.getElementById('metric-filter');
+        const lightThemeBtn = document.getElementById('light-theme');
+        const darkThemeBtn = document.getElementById('dark-theme');
+
+        // Месяца для сортировки
+        const monthsOrder = {
+            "Январь": 1, "Февраль": 2, "Март": 3, "Апрель": 4, "Май": 5, "Июнь": 6,
+            "Июль": 7, "Август": 8, "Сентябрь": 9, "Октябрь": 10, "Ноябрь": 11, "Декабрь": 12
+        };
+
+        // Цвета для графиков
+        const chartColors = [
+            '#3498db', '#e74c3c', '#2ecc71', '#f39c12', '#9b59b6', 
+            '#1abc9c', '#d35400', '#34495e', '#16a085', '#c0392b'
+        ];
+
+        // Тема оформления
+        function setTheme(isDark) {
+            if (isDark) {
+                document.body.classList.add('dark-mode');
+                localStorage.setItem('theme', 'dark');
+            } else {
+                document.body.classList.remove('dark-mode');
+                localStorage.setItem('theme', 'light');
+            }
+            updateCharts(filterData());
+        }
+
+        // Проверка сохраненной темы
+        const savedTheme = localStorage.getItem('theme');
+        if (savedTheme === 'dark') {
+            setTheme(true);
+        }
+
+        // Обработчики тем
+        lightThemeBtn.addEventListener('click', () => setTheme(false));
+        darkThemeBtn.addEventListener('click', () => setTheme(true));
+
+        // Обработчик загрузки файла
+        loadBtn.addEventListener('click', function() {
+            const file = fileInput.files[0];
+            if (!file) {
+                alert('Пожалуйста, выберите файл');
+                return;
+            }
+            
+            loadingIndicator.style.display = 'block';
+            
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, { type: 'array' });
+                    
+                    // Получаем данные из первого листа
+                    const firstSheetName = workbook.SheetNames[0];
+                    const worksheet = workbook.Sheets[firstSheetName];
+                    
+                    // Конвертируем в JSON
+                    rawData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+                    
+                    // Обрабатываем данные
+                    processData();
+                    
+                    // Активируем фильтры
+                    yearFilter.disabled = false;
+                    monthFilter.disabled = false;
+                    metricFilter.disabled = false;
+                    
+                    // Обновляем интерфейс
+                    updateFilters();
+                    const filteredData = filterData();
+                    updateKPIs(filteredData);
+                    updateCharts(filteredData);
+                    
+                    loadingIndicator.style.display = 'none';
+                } catch (error) {
+                    console.error('Ошибка обработки файла:', error);
+                    alert('Ошибка при обработке файла. Проверьте формат данных.');
+                    loadingIndicator.style.display = 'none';
+                }
+            };
+            
+            reader.readAsArrayBuffer(file);
+        });
+
+        // Функция обработки данных
+        function processData() {
+            // Получаем заголовки (первая строка)
+            const headers = rawData[0];
+            
+            // Обрабатываем строки данных
+            processedData = [];
+            for (let i = 1; i < rawData.length; i++) {
+                const row = rawData[i];
+                if (row.length === 0) continue;
+                
+                const item = {};
+                for (let j = 0; j < headers.length; j++) {
+                    item[headers[j]] = row[j];
+                }
+                processedData.push(item);
+            }
+            
+            // Сортируем по году и месяцу
+            processedData.sort((a, b) => {
+                if (a.Год !== b.Год) return a.Год - b.Год;
+                return monthsOrder[a.Месяц] - monthsOrder[b.Месяц];
+            });
+        }
+
+        // Функция обновления фильтров
+        function updateFilters() {
+            // Годы
+            const years = [...new Set(processedData.map(item => item.Год))].sort();
+            yearFilter.innerHTML = '<option value="all">Все</option>';
+            years.forEach(year => {
+                yearFilter.innerHTML += `<option value="${year}">${year}</option>`;
+            });
+            
+            // Месяцы
+            const months = [...new Set(processedData.map(item => item.Месяц))].sort((a, b) => {
+                return monthsOrder[a] - monthsOrder[b];
+            });
+            monthFilter.innerHTML = '<option value="all">Все</option>';
+            months.forEach(month => {
+                monthFilter.innerHTML += `<option value="${monthsOrder[month]}">${month}</option>`;
+            });
+        }
+
+        // Функция фильтрации данных
+        function filterData() {
+            const year = yearFilter.value;
+            const month = monthFilter.value;
+            const metric = metricFilter.value;
+            
+            return processedData.filter(item => {
+                return (year === 'all' || item.Год.toString() === year) &&
+                       (month === 'all' || monthsOrder[item.Месяц].toString() === month) &&
+                       (item.Показатель === metric);
+            });
+        }
+
+        // Функция обновления KPI
+        function updateKPIs(filteredData) {
+            if (processedData.length === 0) return;
+            
+            try {
+                // Среднее количество машин
+                const machines = processedData.filter(d => d.Показатель === "Количество машин").map(d => d["Кол-во"]);
+                const avgMachines = (machines.reduce((a, b) => a + b, 0) / machines.length).toFixed(0);
+                document.getElementById('avg-machines').textContent = avgMachines;
+                
+                // Общий вес грузов (в тоннах)
+                const weights = processedData.filter(d => d.Показатель === "Вес, кг").map(d => d["Кол-во"]);
+                const totalWeight = weights.length > 0 ? (weights.reduce((a, b) => a + b, 0) / 1000).toFixed(0) : 0;
+                document.getElementById('total-weight').textContent = totalWeight + " т";
+                
+                // Средний % претензий
+                const claims = processedData.filter(d => d.Показатель === "% от заказов").map(d => d["Кол-во"]);
+                const avgClaims = claims.length > 0 ? (claims.reduce((a, b) => a + b, 0) / claims.length).toFixed(2) : 0;
+                document.getElementById('avg-claims').textContent = avgClaims + "%";
+                
+                // Средний оборот
+                const turnovers = processedData.filter(d => d.Показатель === "Оборот склад кг/ч").map(d => d["Кол-во"]);
+                const avgTurnover = turnovers.length > 0 ? (turnovers.reduce((a, b) => a + b, 0) / turnovers.length).toFixed(1) : 0;
+                document.getElementById('avg-turnover').textContent = avgTurnover;
+            } catch (e) {
+                console.error("Ошибка при расчете KPI:", e);
+            }
+        }
+
+        // Функция обновления графиков
+        function updateCharts(filteredData) {
+            if (processedData.length === 0) return;
+            
+            try {
+                // Разрушаем старые графики, если они существуют
+                if (mainChart) mainChart.destroy();
+                if (efficiencyChart) efficiencyChart.destroy();
+                
+                // Получаем все уникальные месяцы из данных
+                const allMonths = [...new Set(processedData.map(item => item.Месяц))].sort((a, b) => {
+                    return monthsOrder[a] - monthsOrder[b];
+                });
+                
+                const metric = metricFilter.value;
+                
+                // Основной график (линейный)
+                const mainValues = allMonths.map(month => {
+                    const item = filteredData.find(d => d.Месяц === month);
+                    return item ? item["Кол-во"] : 0;
+                });
+                
+                const mainCtx = document.getElementById('mainChart').getContext('2d');
+                mainChart = new Chart(mainCtx, {
+                    type: 'line',
+                    data: {
+                        labels: allMonths,
+                        datasets: [{
+                            label: metric,
+                            data: mainValues,
+                            borderColor: 'rgb(75, 192, 192)',
+                            tension: 0.1,
+                            fill: false
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: {
+                            y: {
+                                beginAtZero: false
+                            }
+                        }
+                    }
+                });
+                
+                // График эффективности (столбчатый с линией)
+                const turnoverData = allMonths.map(month => {
+                    const item = processedData.find(d => 
+                        (yearFilter.value === 'all' || d.Год.toString() === yearFilter.value) &&
+                        (monthFilter.value === 'all' || monthsOrder[d.Месяц].toString() === monthFilter.value) &&
+                        d.Месяц === month && 
+                        d.Показатель === "Оборот склад кг/ч"
+                    );
+                    return item ? item["Кол-во"] : 0;
+                });
+                
+                const positionsData = allMonths.map(month => {
+                    const item = processedData.find(d => 
+                        (yearFilter.value === 'all' || d.Год.toString() === yearFilter.value) &&
+                        (monthFilter.value === 'all' || monthsOrder[d.Месяц].toString() === monthFilter.value) &&
+                        d.Месяц === month && 
+                        d.Показатель === "Позиций в час"
+                    );
+                    return item ? item["Кол-во"] : 0;
+                });
+                
+                const efficiencyCtx = document.getElementById('efficiencyChart').getContext('2d');
+                efficiencyChart = new Chart(efficiencyCtx, {
+                    type: 'bar',
+                    data: {
+                        labels: allMonths,
+                        datasets: [
+                            {
+                                label: 'Оборот (кг/ч)',
+                                data: turnoverData,
+                                backgroundColor: 'rgba(54, 162, 235, 0.5)',
+                                yAxisID: 'y'
+                            },
+                            {
+                                label: 'Позиций в час',
+                                data: positionsData,
+                                borderColor: 'rgb(255, 99, 132)',
+                                backgroundColor: 'rgba(255, 99, 132, 0.5)',
+                                type: 'line',
+                                yAxisID: 'y1'
+                            }
+                        ]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: {
+                            y: {
+                                type: 'linear',
+                                display: true,
+                                position: 'left',
+                                title: {
+                                    display: true,
+                                    text: 'Оборот (кг/ч)'
+                                }
+                            },
+                            y1: {
+                                type: 'linear',
+                                display: true,
+                                position: 'right',
+                                grid: {
+                                    drawOnChartArea: false
+                                },
+                                title: {
+                                    display: true,
+                                    text: 'Позиций в час'
+                                }
+                            }
+                        }
+                    }
+                });
+                
+                // График сравнения (ECharts)
+                const years = [...new Set(processedData.map(item => item.Год))].sort();
+                
+                comparisonChart.setOption({
+                    tooltip: {
+                        trigger: 'axis'
+                    },
+                    legend: {
+                        data: years.map(y => y.toString()),
+                        textStyle: {
+                            color: getComputedStyle(document.body).getPropertyValue('--text-color')
+                        }
+                    },
+                    xAxis: {
+                        type: 'category',
+                        data: allMonths,
+                        axisLabel: {
+                            color: getComputedStyle(document.body).getPropertyValue('--text-color')
+                        }
+                    },
+                    yAxis: {
+                        type: 'value',
+                        axisLabel: {
+                            color: getComputedStyle(document.body).getPropertyValue('--text-color')
+                        }
+                    },
+                    series: years.map((year, index) => ({
+                        name: year,
+                        type: 'bar',
+                        data: allMonths.map(month => {
+                            const item = processedData.find(d => d.Год.toString() === year.toString() && 
+                                                                 d.Месяц === month && 
+                                                                 d.Показатель === metric);
+                            return item ? item["Кол-во"] : 0;
+                        }),
+                        itemStyle: {
+                            color: chartColors[index % chartColors.length]
+                        }
+                    }))
+                });
+
+                // График "Претензии" (ECharts)
+                problemsChart.setOption({
+                    tooltip: {
+                        trigger: 'axis'
+                    },
+                    legend: {
+                        data: ['Корректировка качества', '% от заказов'],
+                        textStyle: {
+                            color: getComputedStyle(document.body).getPropertyValue('--text-color')
+                        }
+                    },
+                    xAxis: {
+                        type: 'category',
+                        data: allMonths,
+                        axisLabel: {
+                            color: getComputedStyle(document.body).getPropertyValue('--text-color')
+                        }
+                    },
+                    yAxis: {
+                        type: 'value',
+                        axisLabel: {
+                            color: getComputedStyle(document.body).getPropertyValue('--text-color')
+                        }
+                    },
+                    series: [
+                        {
+                            name: 'Корректировка качества',
+                            type: 'line',
+                            data: allMonths.map(month => {
+                                const item = processedData.find(d => d.Месяц === month && d.Показатель === "Корректировка качества");
+				console.log(`Месяц: ${month}, Значение:`, item ? item["Кол-во"] : 0);
+                                return item ? item["Кол-во"] : 0;
+                            }),
+                            smooth: true,
+                            lineStyle: {
+                                width: 3,
+                                color: chartColors[4]
+                            },
+                            itemStyle: {
+                                color: chartColors[4]
+                            }
+                        },
+                        {
+                            name: '% от заказов',
+                            type: 'line',
+                            data: allMonths.map(month => {
+                                const item = processedData.find(d => d.Месяц === month && d.Показатель === "% от заказов");
+                                return item ? item["Кол-во"] : 0;
+                            }),
+                            smooth: true,
+                            lineStyle: {
+                                width: 3,
+                                color: chartColors[1]
+                            },
+                            itemStyle: {
+                                color: chartColors[1]
+                            }
+                        }
+                    ]
+                });
+            } catch (e) {
+                console.error("Ошибка при обновлении графиков:", e);
+            }
+        }
+
+        // Обработчики событий фильтров
+        yearFilter.addEventListener('change', function() {
+            const filteredData = filterData();
+            updateCharts(filteredData);
+        });
+        
+        monthFilter.addEventListener('change', function() {
+            const filteredData = filterData();
+            updateCharts(filteredData);
+        });
+        
+        metricFilter.addEventListener('change', function() {
+            const filteredData = filterData();
+            updateKPIs(filteredData);
+            updateCharts(filteredData);
+        });
+
+        // Респонсивность
+        window.addEventListener('resize', function() {
+            comparisonChart.resize();
+            problemsChart.resize();
+        });
+    </script>
+</body>
+</html>
